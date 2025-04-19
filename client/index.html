@@ -1,0 +1,1057 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rage At Tennis</title>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <style>
+        :root {
+            --background-color: #2D2B8C;
+            --button-color: #333;
+            --button-hover: #505557;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            background-color: #000;
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            position: relative;
+        }
+
+        #gameContainer {
+            position: relative;
+            width: 100%;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: auto;
+            background: var(--background-color);
+            border: 2px solid #fff;
+            border-radius: 4px;
+        }
+
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 20px;
+            width: 100%;
+            max-width: 800px;
+        }
+
+        button {
+            padding: 12px 24px;
+            font-size: 16px;
+            font-weight: bold;
+            color: white;
+            background-color: var(--button-color);
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+        }
+
+        button:hover {
+            background-color: var(--button-hover);
+            transform: translateY(-2px);
+        }
+
+        .menu {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(0, 0, 0, 0.95);
+            padding: 30px;
+            border-radius: 8px;
+            text-align: center;
+            color: white;
+            width: 90%;
+            max-width: 400px;
+            z-index: 1000;
+            border: 2px solid #fff;
+            display: none;
+        }
+
+        #gameMenu {
+            display: block !important;
+        }
+
+        .menu h2 {
+            margin-bottom: 20px;
+            font-size: 24px;
+            color: #fff;
+        }
+
+        .menu button {
+            width: 100%;
+            margin: 10px 0;
+            padding: 15px;
+            background-color: #333;
+        }
+
+        .menu button:hover {
+            background-color: #444;
+        }
+
+        .menu-input {
+            width: 100%;
+            padding: 12px;
+            margin: 10px 0;
+            border: none;
+            border-radius: 4px;
+            background: rgba(255, 255, 255, 0.9);
+            color: black;
+            font-size: 16px;
+        }
+
+        select {
+            width: 100%;
+            padding: 12px;
+            margin: 10px 0;
+            border: none;
+            border-radius: 4px;
+            background: white;
+            font-size: 16px;
+        }
+
+        #waitingRoom {
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        #roomIdDisplay, #passwordDisplay {
+            font-weight: bold;
+            color: #4CAF50;
+            font-size: 18px;
+            margin: 10px 0;
+        }
+
+        @media (max-width: 768px) {
+            .controls {
+                flex-direction: row;
+                padding: 10px;
+            }
+            
+            button {
+                padding: 10px 15px;
+                font-size: 14px;
+            }
+
+            .menu {
+                width: 95%;
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="gameCanvas" width="800" height="400"></canvas>
+        <div class="controls">
+            <button id="pauseButton">Pause (P)</button>
+            <button id="resetButton">Reset Points (R)</button>
+            <button id="menuButton">Menu (M)</button>
+            <button id="linksButton">LINKS (L)</button>
+            <button id="themeButton">THEME (T)</button>
+        </div>
+    </div>
+
+    <div id="gameMenu" class="menu">
+        <h2>Rage At Tennis</h2>
+        <div id="deviceSpecificOptions">
+            <button id="createPartyButton">Create Party</button>
+            <button id="joinPartyButton">Join Party</button>
+            <button id="twoPlayerButton">2 Players Local</button>
+            <button id="aiButton">Play vs AI</button>
+        </div>
+        <div id="createPartyMenu" style="display: none;">
+            <input type="text" id="createRoomId" placeholder="Room Name" class="menu-input">
+            <input type="password" id="createPassword" placeholder="Room Password" class="menu-input">
+            <button id="createRoomButton">Create Room</button>
+            <button id="backFromCreateButton">Back</button>
+        </div>
+        <div id="joinPartyMenu" style="display: none;">
+            <input type="text" id="joinRoomId" placeholder="Room Name" class="menu-input">
+            <input type="password" id="joinPassword" placeholder="Room Password" class="menu-input">
+            <button id="joinRoomButton">Join Room</button>
+            <button id="backFromJoinButton">Back</button>
+        </div>
+        <div id="aiOptions" style="display: none;">
+            <select id="difficulty">
+                <option value="easy">Easy</option>
+                <option value="medium">Medium</option>
+                <option value="hard">Hard</option>
+                <option value="expert">Expert</option>
+            </select>
+            <button id="startAiGame">Start Game</button>
+            <button id="backFromAiButton">Back</button>
+        </div>
+        <div id="waitingRoom" style="display: none;">
+            <p>Waiting for opponent...</p>
+            <p>Room Name: <span id="roomIdDisplay"></span></p>
+            <p>Password: <span id="passwordDisplay"></span></p>
+            <p>Share these details with your friend to play!</p>
+            <button id="backFromWaitingButton">Back to Menu</button>
+        </div>
+    </div>
+
+    <div id="linksMenu" class="menu">
+        <h2>Social Links</h2>
+        <button onclick="window.open('https://guns.lol/sirage7474', '_blank')">guns.lol/sirage7474</button>
+        <button id="backFromLinksButton">Back</button>
+    </div>
+    <script>
+        // Wait for the DOM to be fully loaded
+        document.addEventListener('DOMContentLoaded', function() {
+            // Game elements
+            const canvas = document.getElementById('gameCanvas');
+            const ctx = canvas.getContext('2d');
+            
+            // UI elements
+            const pauseButton = document.getElementById('pauseButton');
+            const resetButton = document.getElementById('resetButton');
+            const menuButton = document.getElementById('menuButton');
+            const gameMenu = document.getElementById('gameMenu');
+            const deviceSpecificOptions = document.getElementById('deviceSpecificOptions');
+            const aiOptions = document.getElementById('aiOptions');
+            const startAiGame = document.getElementById('startAiGame');
+            const difficultySelect = document.getElementById('difficulty');
+            const linksButton = document.getElementById('linksButton');
+            const linksMenu = document.getElementById('linksMenu');
+            const themeButton = document.getElementById('themeButton');
+            const twoPlayerButton = document.getElementById('twoPlayerButton');
+            const aiButton = document.getElementById('aiButton');
+            const createPartyButton = document.getElementById('createPartyButton');
+            const joinPartyButton = document.getElementById('joinPartyButton');
+
+            // Game state
+            let isPaused = false;
+            let isAiMode = false;
+            let aiDifficulty = 'easy';
+            let showingMenu = true;
+            let isDarkMode = true;
+            let isOnlineMode = false;
+            let socket = null;
+            let playerPosition = null;
+            let currentRoomId = null;
+            let lastBallUpdate = Date.now();
+
+            // Hide all submenus initially
+            linksMenu.style.display = 'none';
+            document.getElementById('createPartyMenu').style.display = 'none';
+            document.getElementById('joinPartyMenu').style.display = 'none';
+            document.getElementById('waitingRoom').style.display = 'none';
+            aiOptions.style.display = 'none';
+
+            // Show main menu
+            gameMenu.style.display = 'block';
+            deviceSpecificOptions.style.display = 'block';
+
+            // Menu button handlers
+            menuButton.onclick = () => {
+                showingMenu = true;
+                isPaused = true;
+                gameMenu.style.display = 'block';
+                deviceSpecificOptions.style.display = 'block';
+                aiOptions.style.display = 'none';
+                document.getElementById('createPartyMenu').style.display = 'none';
+                document.getElementById('joinPartyMenu').style.display = 'none';
+                document.getElementById('waitingRoom').style.display = 'none';
+            };
+
+            // Links menu
+            linksButton.onclick = () => {
+                linksMenu.style.display = 'block';
+            };
+
+            document.getElementById('backFromLinksButton').onclick = () => {
+                linksMenu.style.display = 'none';
+            };
+
+            // Two player mode
+            twoPlayerButton.onclick = () => {
+                isAiMode = false;
+                isOnlineMode = false;
+                showingMenu = false;
+                isPaused = false;
+                gameMenu.style.display = 'none';
+                resetPoints();
+            };
+
+            // AI mode
+            aiButton.onclick = () => {
+                deviceSpecificOptions.style.display = 'none';
+                aiOptions.style.display = 'block';
+            };
+
+            document.getElementById('backFromAiButton').onclick = () => {
+                aiOptions.style.display = 'none';
+                deviceSpecificOptions.style.display = 'block';
+            };
+
+            startAiGame.onclick = () => {
+                isAiMode = true;
+                isOnlineMode = false;
+                aiDifficulty = difficultySelect.value;
+                showingMenu = false;
+                isPaused = false;
+                gameMenu.style.display = 'none';
+                resetPoints();
+            };
+
+            // Multiplayer mode
+            createPartyButton.onclick = () => {
+                if (!socket) initializeSocket();
+                deviceSpecificOptions.style.display = 'none';
+                document.getElementById('createPartyMenu').style.display = 'block';
+            };
+
+            joinPartyButton.onclick = () => {
+                if (!socket) initializeSocket();
+                deviceSpecificOptions.style.display = 'none';
+                document.getElementById('joinPartyMenu').style.display = 'block';
+            };
+
+            document.getElementById('createRoomButton').onclick = () => {
+                const roomId = document.getElementById('createRoomId').value;
+                const password = document.getElementById('createPassword').value;
+                if (roomId && password) {
+                    socket.emit('createRoom', { roomId, password });
+                } else {
+                    alert('Please enter both room name and password');
+                }
+            };
+
+            document.getElementById('joinRoomButton').onclick = () => {
+                const roomId = document.getElementById('joinRoomId').value;
+                const password = document.getElementById('joinPassword').value;
+                if (roomId && password) {
+                    socket.emit('joinRoom', { roomId, password });
+                } else {
+                    alert('Please enter both room name and password');
+                }
+            };
+
+            // Back buttons
+            document.getElementById('backFromCreateButton').onclick = () => {
+                document.getElementById('createPartyMenu').style.display = 'none';
+                deviceSpecificOptions.style.display = 'block';
+            };
+
+            document.getElementById('backFromJoinButton').onclick = () => {
+                document.getElementById('joinPartyMenu').style.display = 'none';
+                deviceSpecificOptions.style.display = 'block';
+            };
+
+            document.getElementById('backFromWaitingButton').onclick = () => {
+                document.getElementById('waitingRoom').style.display = 'none';
+                deviceSpecificOptions.style.display = 'block';
+            };
+
+            // Game controls
+            pauseButton.onclick = () => {
+                isPaused = !isPaused;
+                pauseButton.textContent = isPaused ? 'Resume (P)' : 'Pause (P)';
+            };
+
+            resetButton.onclick = resetPoints;
+            themeButton.onclick = toggleTheme;
+
+            // Add device detection
+            const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+            
+            const canvas = document.getElementById('gameCanvas');
+            const ctx = canvas.getContext('2d');
+            const pauseButton = document.getElementById('pauseButton');
+            const resetButton = document.getElementById('resetButton');
+            const menuButton = document.getElementById('menuButton');
+            const gameMenu = document.getElementById('gameMenu');
+            const deviceSpecificOptions = document.getElementById('deviceSpecificOptions');
+            const aiOptions = document.getElementById('aiOptions');
+            const startAiGame = document.getElementById('startAiGame');
+            const difficultySelect = document.getElementById('difficulty');
+            const linksButton = document.getElementById('linksButton');
+            const linksMenu = document.getElementById('linksMenu');
+            const themeButton = document.getElementById('themeButton');
+            const twoPlayerButton = document.getElementById('twoPlayerButton');
+            const aiButton = document.getElementById('aiButton');
+            const multiplayerButton = document.getElementById('multiplayerButton');
+
+            let isPaused = false;
+            let isAiMode = false;
+            let aiDifficulty = 'easy';
+            let showingMenu = true;
+            let isDarkMode = true;
+            let isOnlineMode = false;
+            let socket;
+            let playerPosition = null;
+            let currentRoomId = null;
+            let lastBallUpdate = Date.now();
+
+            // Game objects
+            const player1 = {
+                x: 50,
+                y: canvas.height/2,
+                width: 10,
+                height: 60,
+                score: 0,
+                speed: 7
+            };
+
+            const player2 = {
+                x: canvas.width - 60,
+                y: canvas.height/2,
+                width: 10,
+                height: 60,
+                score: 0,
+                speed: 7
+            };
+
+            const ball = {
+                x: canvas.width/2,
+                y: canvas.height/2,
+                radius: 5,
+                speedX: 7,
+                speedY: 7
+            };
+
+            // Key states
+            const keys = {
+                w: false,
+                s: false,
+                a: false,
+                d: false,
+                ArrowUp: false,
+                ArrowDown: false,
+                ArrowLeft: false,
+                ArrowRight: false
+            };
+
+            // Update menu based on device
+            if (isMobile) {
+                deviceSpecificOptions.innerHTML = `
+                    <button id="aiButton">Play vs AI</button>
+                `;
+                isAiMode = true;
+            }
+
+            // Mobile touch controls
+            let touchActive = false;
+            
+            function handleTouchStart(e) {
+                touchActive = true;
+                handleTouchMove(e);
+            }
+
+            function handleTouchMove(e) {
+                if (!touchActive) return;
+                
+                const touch = e.touches[0];
+                const canvasRect = canvas.getBoundingClientRect();
+                const touchX = touch.clientX - canvasRect.left;
+                const touchY = touch.clientY - canvasRect.top;
+                
+                // Calculate relative positions
+                const relativeX = touchX / canvasRect.width;
+                const relativeY = touchY / canvasRect.height;
+                
+                // Move paddle based on touch position
+                const targetX = relativeX * canvas.width;
+                const targetY = relativeY * canvas.height;
+                
+                // Allow horizontal movement up to half the canvas
+                if (targetX < canvas.width / 2) {
+                    player1.x = Math.max(0, Math.min(canvas.width/2 - player1.width, targetX - player1.width/2));
+                }
+                
+                // Allow full vertical movement
+                player1.y = Math.max(0, Math.min(canvas.height - player1.height, targetY - player1.height/2));
+            }
+
+            function handleTouchEnd() {
+                touchActive = false;
+            }
+
+            if (isMobile) {
+                canvas.addEventListener('touchstart', handleTouchStart, { passive: true });
+                canvas.addEventListener('touchmove', handleTouchMove, { passive: true });
+                canvas.addEventListener('touchend', handleTouchEnd);
+            }
+
+            // Adjust canvas size for mobile
+            function resizeCanvas() {
+                if (isMobile) {
+                    const maxWidth = window.innerWidth - 20;
+                    const scale = maxWidth / 800;
+                    canvas.style.width = maxWidth + 'px';
+                    canvas.style.height = (400 * scale) + 'px';
+                }
+            }
+
+            window.addEventListener('resize', resizeCanvas);
+            resizeCanvas();
+
+            // Event listeners
+            document.addEventListener('keydown', (e) => {
+                if (e.key in keys) {
+                    keys[e.key] = true;
+                }
+                if (e.key.toLowerCase() === 'p') {
+                    isPaused = !isPaused;
+                    pauseButton.textContent = isPaused ? 'Resume (P)' : 'Pause (P)';
+                }
+                if (e.key.toLowerCase() === 'r') {
+                    resetPoints();
+                }
+                if (e.key.toLowerCase() === 'm') {
+                    showingMenu = true;
+                    isPaused = true;
+                }
+                if (e.key.toLowerCase() === 'l') {
+                    openSocialLink();
+                }
+                if (e.key.toLowerCase() === 't') {
+                    toggleTheme();
+                }
+            });
+
+            document.addEventListener('keyup', (e) => {
+                if (e.key in keys) {
+                    keys[e.key] = false;
+                }
+            });
+
+            function updateAI() {
+                if (!isAiMode) return;
+
+                const targetY = ball.y;
+                const aiSpeed = {
+                    'easy': 3,
+                    'medium': 5,
+                    'hard': 7,
+                    'expert': 9
+                }[aiDifficulty];
+
+                const reactionDelay = {
+                    'easy': 0.3,
+                    'medium': 0.1,
+                    'hard': 0,
+                    'expert': 0
+                }[aiDifficulty];
+
+                const predictionError = {
+                    'easy': 50,
+                    'medium': 20,
+                    'hard': 5,
+                    'expert': 0
+                }[aiDifficulty];
+
+                // Add some randomness to make it more human-like
+                const randomOffset = (Math.random() - 0.5) * predictionError;
+                const targetPosition = targetY + randomOffset;
+
+                // Delayed reaction based on difficulty
+                if (Math.random() > reactionDelay) {
+                    if (player2.y + player2.height/2 < targetPosition) {
+                        player2.y += aiSpeed;
+                    } else if (player2.y + player2.height/2 > targetPosition) {
+                        player2.y -= aiSpeed;
+                    }
+
+                    // Horizontal movement for higher difficulties
+                    if (aiDifficulty !== 'easy') {
+                        if (ball.x > canvas.width/2) {
+                            if (player2.x > ball.x - 100) {
+                                player2.x -= aiSpeed;
+                            } else {
+                                player2.x += aiSpeed;
+                            }
+                        } else {
+                            if (player2.x < canvas.width - 100) {
+                                player2.x += aiSpeed;
+                            }
+                        }
+                    }
+                }
+
+                // Keep AI paddle within bounds
+                player2.y = Math.max(0, Math.min(canvas.height - player2.height, player2.y));
+                player2.x = Math.max(canvas.width/2, Math.min(canvas.width - player2.width, player2.x));
+            }
+
+            function movePlayers() {
+                // Player 1 movement (W/S/A/D keys)
+                if (keys.w && player1.y > 0) {
+                    player1.y -= player1.speed;
+                }
+                if (keys.s && player1.y < canvas.height - player1.height) {
+                    player1.y += player1.speed;
+                }
+                if (keys.a && player1.x > 0) {
+                    player1.x -= player1.speed;
+                }
+                if (keys.d && player1.x < canvas.width/2 - player1.width) {
+                    player1.x += player1.speed;
+                }
+
+                // Player 2 movement (Arrow keys)
+                if (!isAiMode) {
+                    if (keys.ArrowUp && player2.y > 0) {
+                        player2.y -= player2.speed;
+                    }
+                    if (keys.ArrowDown && player2.y < canvas.height - player2.height) {
+                        player2.y += player2.speed;
+                    }
+                    if (keys.ArrowLeft && player2.x > canvas.width/2) {
+                        player2.x -= player2.speed;
+                    }
+                    if (keys.ArrowRight && player2.x < canvas.width - player2.width) {
+                        player2.x += player2.speed;
+                    }
+                } else {
+                    updateAI();
+                }
+            }
+
+            function moveBall() {
+                // Store previous position
+                const prevX = ball.x;
+                const prevY = ball.y;
+
+                // Update position
+                ball.x += ball.speedX;
+                ball.y += ball.speedY;
+
+                // Wall collisions
+                if (ball.y + ball.radius > canvas.height || ball.y - ball.radius < 0) {
+                    ball.speedY = -ball.speedY;
+                    ball.y = ball.y + ball.radius > canvas.height ? canvas.height - ball.radius : ball.radius;
+                }
+
+                // Paddle collisions with interpolation
+                const interpolationSteps = 4;
+                for (let i = 0; i <= interpolationSteps; i++) {
+                    const interpolatedX = prevX + (ball.x - prevX) * (i / interpolationSteps);
+                    const interpolatedY = prevY + (ball.y - prevY) * (i / interpolationSteps);
+                    
+                    // Create interpolated ball position for collision check
+                    const interpolatedBall = {
+                        x: interpolatedX,
+                        y: interpolatedY,
+                        radius: ball.radius
+                    };
+
+                    if (checkCollision(interpolatedBall, player1)) {
+                        ball.speedX = Math.abs(ball.speedX) * 1.1; // Ensure ball moves right
+                        ball.x = player1.x + player1.width + ball.radius; // Place ball at edge of paddle
+                        // Add vertical angle based on where the ball hits the paddle
+                        const hitPosition = (ball.y - player1.y) / player1.height;
+                        ball.speedY = (hitPosition - 0.5) * 15;
+                        return;
+                    }
+                    
+                    if (checkCollision(interpolatedBall, player2)) {
+                        ball.speedX = -Math.abs(ball.speedX) * 1.1; // Ensure ball moves left
+                        ball.x = player2.x - ball.radius; // Place ball at edge of paddle
+                        // Add vertical angle based on where the ball hits the paddle
+                        const hitPosition = (ball.y - player2.y) / player2.height;
+                        ball.speedY = (hitPosition - 0.5) * 15;
+                        return;
+                    }
+                }
+
+                // Score points
+                if (ball.x < 0) {
+                    player2.score++;
+                    resetBall();
+                } else if (ball.x > canvas.width) {
+                    player1.score++;
+                    resetBall();
+                }
+
+                // Cap maximum ball speed
+                const maxSpeed = 15;
+                const currentSpeed = Math.sqrt(ball.speedX * ball.speedX + ball.speedY * ball.speedY);
+                if (currentSpeed > maxSpeed) {
+                    const scale = maxSpeed / currentSpeed;
+                    ball.speedX *= scale;
+                    ball.speedY *= scale;
+                }
+            }
+
+            function checkCollision(ball, player) {
+                // Get the closest point on the paddle to the ball
+                const closestX = Math.max(player.x, Math.min(ball.x, player.x + player.width));
+                const closestY = Math.max(player.y, Math.min(ball.y, player.y + player.height));
+                
+                // Calculate the distance between the closest point and the ball's center
+                const distanceX = ball.x - closestX;
+                const distanceY = ball.y - closestY;
+                
+                // Check if the distance is less than the ball's radius
+                const distanceSquared = (distanceX * distanceX) + (distanceY * distanceY);
+                return distanceSquared <= (ball.radius * ball.radius);
+            }
+
+            function resetBall() {
+                ball.x = canvas.width/2;
+                ball.y = canvas.height/2;
+                ball.speedX = (Math.random() > 0.5 ? 1 : -1) * 7;
+                ball.speedY = (Math.random() * 2 - 1) * 7;
+            }
+
+            function resetPoints() {
+                player1.score = 0;
+                player2.score = 0;
+                isPaused = false;
+                resetBall();
+            }
+
+            function checkWinner() {
+                if (player1.score >= 10) {
+                    isPaused = true;
+                    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    ctx.fillStyle = 'white';
+                    ctx.font = '48px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.fillText('PLAYER 1 WON', canvas.width/2, canvas.height/2);
+                    ctx.font = '24px Arial';
+                    ctx.fillText('Press R to play again', canvas.width/2, canvas.height/2 + 40);
+                } else if (player2.score >= 10) {
+                    isPaused = true;
+                    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    ctx.fillStyle = 'white';
+                    ctx.font = '48px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(isAiMode ? 'imagine losing against an AI' : 'PLAYER 2 WON', canvas.width/2, canvas.height/2);
+                    ctx.font = '24px Arial';
+                    ctx.fillText('Press R to play again', canvas.width/2, canvas.height/2 + 40);
+                }
+            }
+
+            function draw() {
+                if (showingMenu) {
+                    gameMenu.style.display = 'block';
+                    return;
+                } else {
+                    gameMenu.style.display = 'none';
+                }
+
+                // Clear canvas
+                ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--background-color');
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                // Draw center line
+                ctx.setLineDash([5, 15]);
+                ctx.beginPath();
+                ctx.moveTo(canvas.width/2, 0);
+                ctx.lineTo(canvas.width/2, canvas.height);
+                ctx.strokeStyle = 'white';
+                ctx.stroke();
+                ctx.setLineDash([]);
+
+                // Draw paddles
+                ctx.fillStyle = 'white';
+                ctx.fillRect(player1.x, player1.y, player1.width, player1.height);
+                ctx.fillRect(player2.x, player2.y, player2.width, player2.height);
+
+                // Draw ball
+                ctx.beginPath();
+                ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+                ctx.fillStyle = 'white';
+                ctx.fill();
+                ctx.closePath();
+
+                // Draw scores and player labels
+                ctx.font = '32px Arial';
+                ctx.fillStyle = 'white';
+                ctx.textAlign = 'center';
+                
+                // Player 1 (left) score and labels
+                ctx.font = '20px Arial';
+                ctx.fillText('PLAYER 1', canvas.width/4, 30);
+                ctx.font = '16px Arial';
+                ctx.fillText('(WASD keys)', canvas.width/4, 50);
+                ctx.font = '32px Arial';
+                ctx.fillText(player1.score, canvas.width/4, 80);
+                
+                // Player 2 (right) score and labels
+                ctx.font = '20px Arial';
+                ctx.fillText(isAiMode ? 'AI' : 'PLAYER 2', 3*canvas.width/4, 30);
+                ctx.font = '16px Arial';
+                ctx.fillText(isAiMode ? `(${aiDifficulty.toUpperCase()})` : '(Arrow keys)', 3*canvas.width/4, 50);
+                ctx.font = '32px Arial';
+                ctx.fillText(player2.score, 3*canvas.width/4, 80);
+
+                // Add credit text at the bottom
+                ctx.font = '16px Arial';
+                ctx.fillStyle = 'white';
+                ctx.textAlign = 'center';
+                ctx.fillText('Made by Sirage7474', canvas.width/2, canvas.height - 10);
+
+                // Check for winner
+                checkWinner();
+            }
+
+            function gameLoop() {
+                if (!isPaused) {
+                    if (isOnlineMode) {
+                        // Only move local player
+                        if (playerPosition === 'left') {
+                            movePlayer(player1, 'w', 's', 'a', 'd');
+                            socket.emit('playerMove', {
+                                roomId: currentRoomId,
+                                position: playerPosition,
+                                x: player1.x,
+                                y: player1.y
+                            });
+                            
+                            // Left player controls ball
+                            moveBall();
+                            if (Date.now() - lastBallUpdate > 16) { // Sync ball ~60 times per second
+                                socket.emit('ballUpdate', {
+                                    roomId: currentRoomId,
+                                    ballState: {
+                                        x: ball.x,
+                                        y: ball.y,
+                                        speedX: ball.speedX,
+                                        speedY: ball.speedY
+                                    },
+                                    scores: {
+                                        player1: player1.score,
+                                        player2: player2.score
+                                    }
+                                });
+                                lastBallUpdate = Date.now();
+                            }
+                        } else {
+                            movePlayer(player2, 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight');
+                            socket.emit('playerMove', {
+                                roomId: currentRoomId,
+                                position: playerPosition,
+                                x: player2.x,
+                                y: player2.y
+                            });
+                        }
+                    } else {
+                        // Original local gameplay
+                        movePlayers();
+                        moveBall();
+                    }
+                }
+                draw();
+                requestAnimationFrame(gameLoop);
+            }
+
+            // Event listeners for buttons
+            pauseButton.addEventListener('click', () => {
+                isPaused = !isPaused;
+                pauseButton.textContent = isPaused ? 'Resume (P)' : 'Pause (P)';
+            });
+
+            resetButton.addEventListener('click', resetPoints);
+
+            menuButton.addEventListener('click', () => {
+                showingMenu = true;
+                isPaused = true;
+            });
+
+            twoPlayerButton.addEventListener('click', () => {
+                isAiMode = false;
+                showingMenu = false;
+                isPaused = false;
+                resetPoints();
+                aiOptions.style.display = 'none';
+            });
+
+            aiButton.addEventListener('click', () => {
+                aiOptions.style.display = 'block';
+                deviceSpecificOptions.style.display = 'none';
+            });
+
+            startAiGame.addEventListener('click', () => {
+                isAiMode = true;
+                aiDifficulty = difficultySelect.value;
+                showingMenu = false;
+                isPaused = false;
+                resetPoints();
+            });
+
+            multiplayerButton.addEventListener('click', () => {
+                isAiMode = false;
+                showingMenu = false;
+                isPaused = false;
+                resetPoints();
+                document.getElementById('waitingRoom').style.display = 'none';
+            });
+
+            themeButton.addEventListener('click', toggleTheme);
+
+            function openSocialLink() {
+                window.open('https://guns.lol/sirage7474', '_blank');
+            }
+
+            function toggleTheme() {
+                isDarkMode = !isDarkMode;
+                if (isDarkMode) {
+                    document.documentElement.style.setProperty('--background-color', '#2D2B8C');
+                    document.documentElement.style.setProperty('--button-color', '#333');
+                    document.documentElement.style.setProperty('--button-hover', '#505557');
+                } else {
+                    document.documentElement.style.setProperty('--background-color', '#4CAF50');
+                    document.documentElement.style.setProperty('--button-color', '#4CAF50');
+                    document.documentElement.style.setProperty('--button-hover', '#45a049');
+                }
+            }
+
+            // Initialize socket connection
+            function initializeSocket() {
+                socket = io('https://tennis-server-y2jb.onrender.com'); // Render.com server URL
+                
+                socket.on('roomCreated', (data) => {
+                    currentRoomId = data.roomId;
+                    document.getElementById('createPartyMenu').style.display = 'none';
+                    document.getElementById('waitingRoom').style.display = 'block';
+                    document.getElementById('roomIdDisplay').textContent = currentRoomId;
+                    document.getElementById('passwordDisplay').textContent = document.getElementById('createPassword').value;
+                });
+
+                socket.on('roomError', (error) => {
+                    alert(error);
+                });
+
+                socket.on('gameStart', (data) => {
+                    playerPosition = data.position;
+                    currentRoomId = data.roomId;
+                    isOnlineMode = true;
+                    showingMenu = false;
+                    isPaused = false;
+                    resetPoints();
+                    document.getElementById('waitingRoom').style.display = 'none';
+                    document.getElementById('joinPartyMenu').style.display = 'none';
+                });
+
+                socket.on('opponentMove', (data) => {
+                    if (playerPosition === 'left') {
+                        player2.x = data.x;
+                        player2.y = data.y;
+                    } else {
+                        player1.x = data.x;
+                        player1.y = data.y;
+                    }
+                });
+
+                socket.on('ballSync', (data) => {
+                    if (playerPosition === 'right') {
+                        ball.x = data.ballState.x;
+                        ball.y = data.ballState.y;
+                        ball.speedX = data.ballState.speedX;
+                        ball.speedY = data.ballState.speedY;
+                        if (data.scores) {
+                            player1.score = data.scores.player1;
+                            player2.score = data.scores.player2;
+                        }
+                    }
+                });
+
+                socket.on('playerDisconnected', () => {
+                    alert('Opponent disconnected!');
+                    isOnlineMode = false;
+                    showingMenu = true;
+                    currentRoomId = null;
+                    resetPoints();
+                });
+            }
+
+            // Party system event listeners
+            document.getElementById('createPartyButton').addEventListener('click', () => {
+                if (!socket) initializeSocket();
+                deviceSpecificOptions.style.display = 'none';
+                document.getElementById('createPartyMenu').style.display = 'block';
+            });
+
+            document.getElementById('joinPartyButton').addEventListener('click', () => {
+                if (!socket) initializeSocket();
+                deviceSpecificOptions.style.display = 'none';
+                document.getElementById('joinPartyMenu').style.display = 'block';
+            });
+
+            document.getElementById('createRoomButton').addEventListener('click', () => {
+                const roomId = document.getElementById('createRoomId').value;
+                const password = document.getElementById('createPassword').value;
+                if (roomId && password) {
+                    socket.emit('createRoom', { roomId, password });
+                } else {
+                    alert('Please enter both room name and password');
+                }
+            });
+
+            document.getElementById('joinRoomButton').addEventListener('click', () => {
+                const roomId = document.getElementById('joinRoomId').value;
+                const password = document.getElementById('joinPassword').value;
+                if (roomId && password) {
+                    socket.emit('joinRoom', { roomId, password });
+                } else {
+                    alert('Please enter both room name and password');
+                }
+            });
+
+            // Back buttons
+            document.getElementById('backFromCreateButton').addEventListener('click', () => {
+                document.getElementById('createPartyMenu').style.display = 'none';
+                deviceSpecificOptions.style.display = 'block';
+            });
+
+            document.getElementById('backFromJoinButton').addEventListener('click', () => {
+                document.getElementById('joinPartyMenu').style.display = 'none';
+                deviceSpecificOptions.style.display = 'block';
+            });
+
+            document.getElementById('backFromWaitingButton').addEventListener('click', () => {
+                document.getElementById('waitingRoom').style.display = 'none';
+                deviceSpecificOptions.style.display = 'block';
+                // TODO: Clean up room if creator leaves
+            });
+
+            function movePlayer(player, upKey, downKey, leftKey, rightKey) {
+                if (keys[upKey] && player.y > 0) {
+                    player.y -= player.speed;
+                }
+                if (keys[downKey] && player.y < canvas.height - player.height) {
+                    player.y += player.speed;
+                }
+                if (keys[leftKey] && player.x > (playerPosition === 'left' ? 0 : canvas.width/2)) {
+                    player.x -= player.speed;
+                }
+                if (keys[rightKey] && player.x < (playerPosition === 'left' ? canvas.width/2 - player.width : canvas.width - player.width)) {
+                    player.x += player.speed;
+                }
+            }
+
+            // Start the game
+            gameLoop();
+        });
+    </script>
+</body>
+</html>
